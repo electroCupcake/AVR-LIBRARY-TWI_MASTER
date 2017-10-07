@@ -1,5 +1,5 @@
-SRC := twiMaster.c
-ARCHIVE := $(addprefix lib,$(SRC:.c=.a))
+SOURCES := twiMaster.c
+ARCHIVE := $(addprefix lib,$(SOURCES:.c=.a))
 AVR_MMCU = atmega328p
 AVR_CPU_SPEED = 16000000UL
 LIB_PATH =
