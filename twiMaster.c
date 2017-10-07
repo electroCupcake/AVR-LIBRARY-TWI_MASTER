@@ -3,7 +3,7 @@
  *
  *  Created on: Aug 12, 2015
  *      Author: jconvertino
- * 
+ *
     Copyright (C) 2015 John Convertino
 
     This program is free software; you can redistribute it and/or modify
@@ -55,76 +55,23 @@ struct
 } twi;
 
 //functions for twi control register setup and clearing interrupt
-//generate start condition
-static inline void twiStart()
-{
-	TWCR = (1 << TWSTA) | (1 << TWEN) | (1 << TWIE) | (1 << TWINT);
-}
-
-//generate stop condition
-static inline void twiStop()
-{
-	TWCR = (1 << TWSTO) | (1 << TWEN) | (1 << TWINT);
-}
-
-//clear interrupt and keep enabled
-static inline void twiReady()
-{
-	TWCR =  (1 << TWINT) | (1 << TWEN) | (1 << TWIE);
-}
-
-//send ack pulse
-static inline void twiACK()
-{
-	TWCR = (1 << TWEA) | (1 << TWINT) | (1 << TWEN) | (1 << TWIE);
-}
-
-//send nack pulse
-static inline void twiNACK()
-{
-	TWCR = (1 << TWINT) | (1 << TWEN) | (1 << TWIE);
-}
-
-//reset twi in case or error
-static inline void twiRST()
-{
-	TWCR = (1 << TWINT) |(1 << TWEN) | (1 << TWIE) | (1 << TWEA);
-}
-
-//check return value and setup twi action based on value.
-static inline void twiAction(int value)
-{
-	switch(value)
-	{
-	case TWI_READY:
-		twiReady();
-		break;
-	case TWI_NACK:
-		twiNACK();
-		break;
-	case TWI_STOP:
-		twiStop();
-		break;
-	default:
-		twiACK();
-		break;
-	}
-}
-
-
-//generic method for setting up address and settings read/write bit, also trigger start condition
-void twiBeginTrans(uint8_t address, uint8_t RW)
-{
-	twi.sla.bits.address = address;
-
-	twi.sla.bits.RW = RW;
-
-	twiStart();
-}
+static inline void twiStart();
+static inline void twiStop();
+static inline void twiReady();
+static inline void twiACK();
+static inline void twiNACK();
+static inline void twiRST();
+static inline void twiAction(int value);
+void twiBeginTrans(uint8_t address, uint8_t RW);
 
 //init twi info, calculate scl_speed for TWBR, also enable interrupts
-void twiInit(uint32_t scl_speed, consumer fnptr_consumer, producer fnptr_producer)
+void initTwi(uint32_t scl_speed, consumer fnptr_consumer, producer fnptr_producer)
 {
+	uint8_t tmpSREG = 0;
+
+	tmpSREG = SREG;
+	cli();
+
 	TWSR = 0;
 	TWCR = 0;
 	TWBR = (F_CPU / scl_speed - 16) / 2;
@@ -140,17 +87,29 @@ void twiInit(uint32_t scl_speed, consumer fnptr_consumer, producer fnptr_produce
 
 	memset(twi.bufferData, 0, MAX_BUFFER_SIZE);
 
+	SREG = tmpSREG;
+
 	sei();
 }
 
 void twiPullups()
 {
+	uint8_t tmpSREG = 0;
+
+	tmpSREG = SREG;
+	cli();
+
 	PORTC |= (1 << PORTC5) | (1 << PORTC4);
+
+	SREG = tmpSREG;
 }
 
 //write to buffer for twi data send
 int twiSend(uint8_t address, uint8_t *data, size_t size)
 {
+	uint8_t tmpSREG = 0;
+
+	tmpSREG = SREG;
 
 	if(twiBusyCk())
 	{
@@ -167,12 +126,16 @@ int twiSend(uint8_t address, uint8_t *data, size_t size)
 		return EXIT_DATA_LRG;
 	}
 
+	cli();
+
 	//deep copy data
 	memcpy(twi.bufferData, data, size);
 
 	twi.bufferSize = size;
 
 	twi.bufferIndex = 0;
+
+	SREG = tmpSREG;
 
 	twiBeginTrans(address, TW_WRITE);
 
@@ -182,6 +145,10 @@ int twiSend(uint8_t address, uint8_t *data, size_t size)
 //read from buffer after twi has sent address and built up data
 int twiRecv(uint8_t address, uint8_t *data, size_t size)
 {
+	uint8_t tmpSREG = 0;
+
+	tmpSREG = SREG;
+
 	if(twiBusyCk())
 	{
 		return EXIT_BUSY;
@@ -197,20 +164,29 @@ int twiRecv(uint8_t address, uint8_t *data, size_t size)
 		return EXIT_DATA_LRG;
 	}
 
+	cli();
+
 	twi.bufferSize = size;
+
+	SREG = tmpSREG;
 
 	twiBeginTrans(address, TW_READ);
 
 	//wait till read is done, as we have to wait to do the deep copy
 	while(twiBusyCk());
 
+	cli();
+
 	if(twi.bufferIndex != twi.bufferSize)
 	{
+		SREG = tmpSREG;
 		return EXIT_TWI_ERR;
 	}
 
 	//deep copy
 	memcpy(data, twi.bufferData, size);
+
+	SREG = tmpSREG;
 
 	return EXIT_SUCCESS;
 }
@@ -218,7 +194,14 @@ int twiRecv(uint8_t address, uint8_t *data, size_t size)
 //begin transmission using handler
 void twiBeginHandlerTrans(uint8_t address, uint8_t RW)
 {
+	uint8_t tmpSREG = 0;
+
+	tmpSREG = SREG;
+	cli();
+
 	twi.handlerEnable = enabled;
+
+	SREG = tmpSREG;
 
 	twiBeginTrans(address, RW);
 }
@@ -226,7 +209,14 @@ void twiBeginHandlerTrans(uint8_t address, uint8_t RW)
 //stop handler, allow ISR to end transmission correctly
 void twiStopHandlerTrans()
 {
+	uint8_t tmpSREG = 0;
+
+	tmpSREG = SREG;
+	cli();
+
 	twi.handlerEnable = disabled;
+
+	SREG = tmpSREG;
 }
 
 //check if the the interrupt is enabled, if so, ISR in progress and were busy
@@ -328,4 +318,73 @@ ISR(TWI_vect)
 			twiRST();
 			break;
 	}
+}
+
+//helper functions
+//functions for twi control register setup and clearing interrupt
+//generate start condition
+static inline void twiStart()
+{
+	TWCR = (1 << TWSTA) | (1 << TWEN) | (1 << TWIE) | (1 << TWINT);
+}
+
+//generate stop condition
+static inline void twiStop()
+{
+	TWCR = (1 << TWSTO) | (1 << TWEN) | (1 << TWINT);
+}
+
+//clear interrupt and keep enabled
+static inline void twiReady()
+{
+	TWCR =  (1 << TWINT) | (1 << TWEN) | (1 << TWIE);
+}
+
+//send ack pulse
+static inline void twiACK()
+{
+	TWCR = (1 << TWEA) | (1 << TWINT) | (1 << TWEN) | (1 << TWIE);
+}
+
+//send nack pulse
+static inline void twiNACK()
+{
+	TWCR = (1 << TWINT) | (1 << TWEN) | (1 << TWIE);
+}
+
+//reset twi in case or error
+static inline void twiRST()
+{
+	TWCR = (1 << TWINT) |(1 << TWEN) | (1 << TWIE) | (1 << TWEA);
+}
+
+//check return value and setup twi action based on value.
+static inline void twiAction(int value)
+{
+	switch(value)
+	{
+	case TWI_READY:
+		twiReady();
+		break;
+	case TWI_NACK:
+		twiNACK();
+		break;
+	case TWI_STOP:
+		twiStop();
+		break;
+	default:
+		twiACK();
+		break;
+	}
+}
+
+
+//generic method for setting up address and settings read/write bit, also trigger start condition
+void twiBeginTrans(uint8_t address, uint8_t RW)
+{
+	twi.sla.bits.address = address;
+
+	twi.sla.bits.RW = RW;
+
+	twiStart();
 }

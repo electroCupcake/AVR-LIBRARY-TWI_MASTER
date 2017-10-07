@@ -3,7 +3,7 @@
  *
  *  Created on: Aug 12, 2015
  *      Author: jconvertino
- 
+
     Copyright (C) 2015 John Convertino
 
     This program is free software; you can redistribute it and/or modify
@@ -59,7 +59,7 @@ typedef int (*producer)(volatile uint8_t *);
 
 //setup twi at a specified scl speed, allows handles to be use fnptr_consumer for receiving data from twi,
 //and fnptr_producer for sending data on the twi. Use NULL for no handlers.
-void twiInit(uint32_t scl_speed, consumer fnptr_consumer, producer fnptr_producer);
+void initTwi(uint32_t scl_speed, consumer fnptr_consumer, producer fnptr_producer);
 
 //enable twi pullups
 void twiPullups();
