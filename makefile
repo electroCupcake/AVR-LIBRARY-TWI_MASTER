@@ -22,7 +22,6 @@ AVR_BUILD: $(ARCHIVE)
 
 $(ARCHIVE) : $(AVR_OBJECTS)
 	$(CROSS_COMPILE)$(AR) $(AVR_AFLAGS) $@ $<
-	rm -f $<
 
 %.o: %.c
 	$(CROSS_COMPILE)$(CC) $(INCLUDES) $(AVR_CFLAGS) -c $< -o $@
