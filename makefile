@@ -14,6 +14,8 @@ AVR_CFLAGS := $(if $(AVR_CFLAGS),$(AVR_CFLAGS),-Wall -g2 -gstabs -O1 -fpack-stru
 AVR_AFLAGS := -r
 AVR_OBJECTS := $(SOURCES:.c=.o)
 
+.PHONY: all AVR_BUILD clean
+
 all: AVR_BUILD
 
 AVR_BUILD: $(ARCHIVE)
